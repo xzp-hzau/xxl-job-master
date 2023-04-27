@@ -25,6 +25,11 @@ public class JobTriggerPoolHelper {
     private ThreadPoolExecutor slowTriggerPool = null;
 
     public void start(){
+        // 快触发器线程池
+        // 核心:10个线程, 最大线程:可设置（注意该最大线程）
+        // 空闲存活时间:60S
+        // Linked有序阻塞队列：1000
+        // 默认拒绝策略：AbortPolicy - 丢弃
         fastTriggerPool = new ThreadPoolExecutor(
                 10,
                 XxlJobAdminConfig.getAdminConfig().getTriggerPoolFastMax(),
@@ -38,6 +43,11 @@ public class JobTriggerPoolHelper {
                     }
                 });
 
+        // 慢触发器线程池
+        // 核心:10个线程, 最大线程:可设置（注意该最大线程）
+        // 空闲存活时间:60S
+        // Linked有序阻塞队列：2000
+        // 默认拒绝策略：AbortPolicy - 丢弃
         slowTriggerPool = new ThreadPoolExecutor(
                 10,
                 XxlJobAdminConfig.getAdminConfig().getTriggerPoolSlowMax(),
@@ -62,12 +72,18 @@ public class JobTriggerPoolHelper {
 
 
     // job timeout count
+    // 获取分钟级别时间，1sec = 1000ms, 1min = 60sec
     private volatile long minTim = System.currentTimeMillis()/60000;     // ms > min
+
+    // 线程安全的Map，分段锁
+    // key - 任务Id， jobId
+    // value - 任务超时数量统计
     private volatile ConcurrentMap<Integer, AtomicInteger> jobTimeoutCountMap = new ConcurrentHashMap<>();
 
 
     /**
      * add trigger
+     * 添加任务触发器
      */
     public void addTrigger(final int jobId,
                            final TriggerTypeEnum triggerType,
@@ -78,6 +94,7 @@ public class JobTriggerPoolHelper {
 
         // choose thread pool
         ThreadPoolExecutor triggerPool_ = fastTriggerPool;
+        // CompareAndSet的原子计数
         AtomicInteger jobTimeoutCount = jobTimeoutCountMap.get(jobId);
         if (jobTimeoutCount!=null && jobTimeoutCount.get() > 10) {      // job-timeout 10 times in 1 min
             triggerPool_ = slowTriggerPool;
@@ -126,6 +143,7 @@ public class JobTriggerPoolHelper {
     private static JobTriggerPoolHelper helper = new JobTriggerPoolHelper();
 
     public static void toStart() {
+        // 静态单实例，集群级别
         helper.start();
     }
     public static void toStop() {

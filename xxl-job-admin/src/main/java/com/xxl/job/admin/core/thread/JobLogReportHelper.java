@@ -119,6 +119,7 @@ public class JobLogReportHelper {
                         lastCleanLogTime = System.currentTimeMillis();
                     }
 
+                    // 应该是为了防止STW
                     try {
                         TimeUnit.MINUTES.sleep(1);
                     } catch (Exception e) {

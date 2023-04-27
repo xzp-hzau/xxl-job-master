@@ -32,6 +32,7 @@ public class JobRegistryHelper {
 	public void start(){
 
 		// for registry or remove
+		// 监控节点注册 或 节点移除 线程池
 		registryOrRemoveThreadPool = new ThreadPoolExecutor(
 				2,
 				10,
@@ -47,15 +48,18 @@ public class JobRegistryHelper {
 				new RejectedExecutionHandler() {
 					@Override
 					public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+						// 交由父线程直接执行，不再交由线程池执行
 						r.run();
 						logger.warn(">>>>>>>>>>> xxl-job, registry or remove too fast, match threadpool rejected handler(run now).");
 					}
 				});
 
 		// for monitor
+		// 监控线程
 		registryMonitorThread = new Thread(new Runnable() {
 			@Override
 			public void run() {
+				// 有条件死循环！
 				while (!toStop) {
 					try {
 						// auto registry group
@@ -63,16 +67,21 @@ public class JobRegistryHelper {
 						if (groupList!=null && !groupList.isEmpty()) {
 
 							// remove dead address (admin/executor)
+							// 90sec
+							// 从xxl_job_registry表中查询(与当前时间对比）已过期90sec超时响应的节点ID
 							List<Integer> ids = XxlJobAdminConfig.getAdminConfig().getXxlJobRegistryDao().findDead(RegistryConfig.DEAD_TIMEOUT, new Date());
 							if (ids!=null && ids.size()>0) {
+								// 移除表中超时影响节点，直接删delete
 								XxlJobAdminConfig.getAdminConfig().getXxlJobRegistryDao().removeDead(ids);
 							}
 
 							// fresh online address (admin/executor)
 							HashMap<String, List<String>> appAddressMap = new HashMap<String, List<String>>();
+							// 查询肯定未过期的节点，存活（90s内有响应）
 							List<XxlJobRegistry> list = XxlJobAdminConfig.getAdminConfig().getXxlJobRegistryDao().findAll(RegistryConfig.DEAD_TIMEOUT, new Date());
 							if (list != null) {
 								for (XxlJobRegistry item: list) {
+									// 初始化appAddressMap，同一appname节点放在一起，appname为Key，registryValue为Value
 									if (RegistryConfig.RegistType.EXECUTOR.name().equals(item.getRegistryGroup())) {
 										String appname = item.getRegistryKey();
 										List<String> registryList = appAddressMap.get(appname);
@@ -101,20 +110,26 @@ public class JobRegistryHelper {
 									addressListStr = addressListSB.toString();
 									addressListStr = addressListStr.substring(0, addressListStr.length()-1);
 								}
+								// 以英文逗号为分割的list集合
 								group.setAddressList(addressListStr);
+								// 更新时间更新
 								group.setUpdateTime(new Date());
 
+								// 更新节点
 								XxlJobAdminConfig.getAdminConfig().getXxlJobGroupDao().update(group);
 							}
 						}
 					} catch (Exception e) {
+						//	有错误，也不会停止执行
 						if (!toStop) {
 							logger.error(">>>>>>>>>>> xxl-job, job registry monitor thread error:{}", e);
 						}
 					}
 					try {
+						// 间隔30sec，加上Mysql执行耗时等，可能不止30sec
 						TimeUnit.SECONDS.sleep(RegistryConfig.BEAT_TIMEOUT);
 					} catch (InterruptedException e) {
+						//	有错误，也不会停止执行
 						if (!toStop) {
 							logger.error(">>>>>>>>>>> xxl-job, job registry monitor thread error:{}", e);
 						}
@@ -123,12 +138,15 @@ public class JobRegistryHelper {
 				logger.info(">>>>>>>>>>> xxl-job, job registry monitor thread stop");
 			}
 		});
+		// 后台守护线程，当所有非守护线程关闭，JVM关闭，守护线程自动关闭停止（守护线程拥有自动结束自己生命周期的特性，而非守护线程不具备这个特点 - 垃圾回收器守护线程）
 		registryMonitorThread.setDaemon(true);
 		registryMonitorThread.setName("xxl-job, admin JobRegistryMonitorHelper-registryMonitorThread");
+		// 启动监控
 		registryMonitorThread.start();
 	}
 
 	public void toStop(){
+		// 当xxl-job被关闭时，关闭监控死循环
 		toStop = true;
 
 		// stop registryOrRemoveThreadPool

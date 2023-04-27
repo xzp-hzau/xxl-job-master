@@ -43,6 +43,7 @@ public class JobFailMonitorHelper {
 							for (long failLogId: failLogIds) {
 
 								// lock log
+								// 告警状态：0-默认、-1=锁定状态、1-无需告警、2-告警成功、3-告警失败
 								int lockRet = XxlJobAdminConfig.getAdminConfig().getXxlJobLogDao().updateAlarmStatus(failLogId, 0, -1);
 								if (lockRet < 1) {
 									continue;
@@ -78,6 +79,7 @@ public class JobFailMonitorHelper {
 					}
 
                     try {
+                    	// 10sec执行一次，实际加上Mysql执行时间，可能不止10sec
                         TimeUnit.SECONDS.sleep(10);
                     } catch (Exception e) {
                         if (!toStop) {
