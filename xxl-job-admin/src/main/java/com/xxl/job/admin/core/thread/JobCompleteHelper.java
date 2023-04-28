@@ -35,6 +35,8 @@ public class JobCompleteHelper {
 	public void start(){
 
 		// for callback
+		// 任务执行完成回调处理线程 初始化 ，  2， 30 ， 30 sec， 3000 Queue Length, 拒绝策略：加入当前主线程直接执行
+		//
 		callbackThreadPool = new ThreadPoolExecutor(
 				2,
 				20,
@@ -57,12 +59,14 @@ public class JobCompleteHelper {
 
 
 		// for monitor
+		// 监控任务处理执行情况
 		monitorThread = new Thread(new Runnable() {
 
 			@Override
 			public void run() {
 
 				// wait for JobTriggerPoolHelper-init
+				// 线程休眠机制
 				try {
 					TimeUnit.MILLISECONDS.sleep(50);
 				} catch (InterruptedException e) {
@@ -88,6 +92,7 @@ public class JobCompleteHelper {
 								jobLog.setHandleCode(ReturnT.FAIL_CODE);
 								jobLog.setHandleMsg( I18nUtil.getString("joblog_lost_fail") );
 
+								// 若有Client执行超过10min， 且查表后得知心跳超时失败
 								XxlJobCompleter.updateHandleInfoAndFinish(jobLog);
 							}
 
