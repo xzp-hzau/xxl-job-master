@@ -75,7 +75,7 @@ public class XxlJobSchedulerCopy {
                         conn = XxlJobAdminConfig.getAdminConfig().getDataSource().getConnection();
                         connAutoCommit = conn.getAutoCommit();
                         conn.setAutoCommit(false);
-                        //获取任务调度锁表内数据信息,加写锁
+                        //获取任务调度锁表内数据信息,加gap读锁 + mysql会自动加意向锁 -> 阻塞其他写入 -> 保证锁的唯一性，多个并发争抢这一把意向读锁
                         preparedStatement = conn.prepareStatement(  "select * from xxl_job_lock where lock_name = 'schedule_lock' for update" );
                         preparedStatement.execute();
 
